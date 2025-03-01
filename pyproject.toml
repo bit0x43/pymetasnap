@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pymetasnap"
-version = "0.42.0"
+version = "0.43.0"
 description = "This package allows you to scrape metadata from the Python Package Index"
 authors = ["bit0x43 <52975165+bit0x43@users.noreply.github.com>"]
 license = "MIT"
