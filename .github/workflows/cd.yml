@@ -2,50 +2,47 @@
 name: CD
 permissions:
   contents: write
-  pull-requests: write
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
     branches: [main]
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   build:
     name: Continuous Deployment
-    permissions: write-all
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.repository == 'bit0x43/pymetasnap' && github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      version: ${{ steps.update-package-version.outputs.PACKAGE_VERSION }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: '3.10'  # Replace with your Python version
+          python-version: '3.12'
       - name: Install dependencies
         run: |
           pip install poetry
           npm install -g auto-changelog
-      - name: Build the package
+      - name: Configure git identity
         run: |
-          poetry install --only main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Determine Version Bump
         id: determine_version_bump
         run: |
           MESSAGE=$(git log -1 --pretty=format:'%s')
           if [[ $MESSAGE == build* ]]; then
-              echo "::set-output name=bump::patch"
+              echo "bump=patch" >> "$GITHUB_OUTPUT"
           else
-              echo "::set-output name=bump::minor"
+              echo "bump=minor" >> "$GITHUB_OUTPUT"
           fi
       - name: Update package version
         id: update-package-version
         run: |
           poetry version ${{ steps.determine_version_bump.outputs.bump }}
-          echo "PACKAGE_VERSION=$(poetry version | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          echo "PACKAGE_VERSION=$(poetry version --short)" >> "$GITHUB_OUTPUT"
           git add pyproject.toml
           git commit -m "Bump ${{ steps.determine_version_bump.outputs.bump }} version"
           git push
@@ -53,27 +50,19 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.update-package-version.outputs.PACKAGE_VERSION }}
         run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git tag -a $PACKAGE_VERSION -m "chore: Bumping $PACKAGE_VERSION"
-          git push origin --tags
-          npm i -g auto-changelog
+          git tag -a "$PACKAGE_VERSION" -m "chore: Bumping $PACKAGE_VERSION"
+          git push origin "$PACKAGE_VERSION"
           auto-changelog
           git add CHANGELOG.md
           git commit -m "chore: updating changelog"
           git push origin main
-      - name: Create Release
-        if: github.ref == 'refs/heads/main'
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_VERSION: ${{ steps.update-package-version.outputs.PACKAGE_VERSION }}
-        with:
-          tag_name: ${{ env.PACKAGE_VERSION }}
-          release_name: ${{ env.PACKAGE_VERSION }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
+  publish:
+    name: Publish to PyPI
+    needs: build
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.build.outputs.version }}
+    secrets: inherit
   on-failure:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
