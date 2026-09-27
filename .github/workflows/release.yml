@@ -2,39 +2,54 @@
 name: Release
 permissions:
   contents: write
-  pull-requests: write
 on:
-  workflow_run:
-    workflows: [CD]
-    types: [completed]
+  # Called by CD after a version is tagged, or run by hand to (re)publish a tag.
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to build and publish (e.g. 0.49.0)
+        type: string
+        required: true
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TAG: ${{ inputs.tag }}
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.repository == 'bit0x43/pymetasnap' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          pip install poetry
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
       - name: Build the package
         run: |
-          poetry install --only main
+          pip install poetry
           poetry build
+      - name: Check package metadata
+        run: |
+          test "$(poetry version --short)" = "$TAG"
+          for f in dist/*.whl; do unzip -p "$f" '*/METADATA'; done > metadata.txt
+          grep -qx 'Author: traps-bath-santa' metadata.txt
       - name: Publish package
-        uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
-  on-failure:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
-    steps:
-      - run: echo 'The triggering workflow failed'
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # CD commits the changelog after tagging, so take the notes from main.
+          git show origin/main:CHANGELOG.md > release-notes.md
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --title "$TAG" --notes-file release-notes.md dist/*
