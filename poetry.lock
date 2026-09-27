@@ -759,22 +759,21 @@ files = [
 
 [[package]]
 name = "ghapi"
-version = "1.0.6"
+version = "1.0.11"
 description = "A python client for the GitHub API"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "ghapi-1.0.6-py3-none-any.whl", hash = "sha256:b3d96bf18fcaa2cb7131bad9de2948e2a1c2bb226377a25826f6c80950c57854"},
-    {file = "ghapi-1.0.6.tar.gz", hash = "sha256:64fdd9f06d8e3373065c42c2a03e067e2bbb9ca18b583cd6e38a28aaad0224f6"},
+    {file = "ghapi-1.0.11-py3-none-any.whl", hash = "sha256:23523ff9add0b4861bbd024e76d5dd1ccec27c6d69be4ba893767c1775ab0329"},
+    {file = "ghapi-1.0.11.tar.gz", hash = "sha256:16927324c9b4fe51976e18ba88961cce25868977cc902ce667eb82f936c59a4b"},
 ]
 
 [package.dependencies]
 fastcore = ">=1.7.2"
-packaging = "*"
 
 [package.extras]
-dev = ["jsonref", "matplotlib"]
+dev = ["jsonref", "llms-txt (>=0.0.6)", "matplotlib", "nbclassic", "nbdev", "pysymbol_llm"]
 
 [[package]]
 name = "h11"
